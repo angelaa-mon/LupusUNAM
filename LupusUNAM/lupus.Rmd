@@ -1,0 +1,123 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Cmd+Shift+Enter*. 
+
+```{r librerias}
+library(dplyr)
+library(tidyverse)
+library(gt)
+library(visdat)
+library(ggplot2)
+library(patchwork)
+library(readr)
+```
+
+```{r database}
+# cargar la base de datos
+db_lp = readr::read_csv("/Users/angelamontano/Desktop/Lupus UNAM/db_lupus.csv", show_col_types = FALSE)
+```
+
+```{r}
+# selección de variables
+parte1 = data.frame(
+  id = db_lp$...1,
+  sat_vida = db_lp$disfruta_vida, 
+  cant_medicamento = db_lp$cantidad_medicamento)
+
+# counts de cada sección de satisfacción de vida
+satisfaccion_vida_counts <- count(db_lp, disfruta_vida)
+
+# distribución satisfacción vida vs. cantidad de medicamento
+ggplot(data = parte1, aes(x = sat_vida, y = cant_medicamento, colour = sat_vida)) +
+  geom_point(position = "jitter") +
+  xlab("Satisfacción de vida reportada") +
+  ylab("# de medicamentos") +
+  ggtitle("") +
+  theme_bw()
+
+ggplot(data = parte1, aes(x = cant_medicamento, y = sat_vida, colour = sat_vida)) +
+  geom_point(position = "jitter") +
+  xlab("Satisfacción de vida reportada") +
+  ylab("# de medicamentos") +
+  ggtitle("") +
+  theme_bw()
+```
+
+```{r grafica2}
+parte2 <- db_lp %>%
+  select(
+    id = ...1,
+    convulsion,
+    psicosis,
+    cerebro_organico,
+    sledai_points___conciencia,
+    alteracion_visual,
+    alteracion_nervios_craneales,
+    cafalea_lupica,
+    accidente_cerebrovascular,
+    vasculitis,
+    astritis,
+    miositis,
+    clindos_urinarios,
+    hematuria,
+    proteinuria,
+    piuria,
+    erupcion,
+    alopecia,
+    ulcera_mucosa,
+    pleuresia,
+    pericarditis,
+    hipocomplemen,
+    aumento_union,
+    fiebre,
+    trombocitopen,
+    leucopenia,
+    ninguno
+  )
+
+# Step 2: Calculate the number of symptoms for each individual
+parte2$sum_symptoms <- rowSums(parte2[, -1])
+
+# Step 3: Create groups based on the number of symptoms
+parte2$grupo <- cut(parte2$sum_symptoms, 
+                breaks = c(0, 6, 12, 18, 24),
+                labels = c("0-6 symptoms", "7-12 symptoms", "13-18 symptoms", "19-24 symptoms"),
+                right = TRUE, include.lowest = TRUE)
+
+# View the resulting dataframe with groups
+parte2.1 = data.frame(
+  grupos.muestra = parte2$grupo,
+  dinero = db_lp$dinero_suficiente
+)
+
+ggplot(parte2.1, aes(x = grupos.muestra, y = dinero, colour = dinero)) +
+  geom_point(position = "jitter") +
+  xlab("Satisfacción de vida reportada") +
+  ylab("# de medicamentos") +
+  ggtitle("") +
+  theme_bw()
+
+ggplot(parte2.1, aes(x = dinero, y = grupos.muestra, colour = grupos.muestra)) +
+  geom_point(position = "jitter") +
+  xlab("Grupo de Síntomas") +
+  ylab("Dinero Suficiente") +
+  ggtitle("Distribución del Dinero Suficiente por Grupos de Síntomas") +
+  scale_colour_hue(labels = c("0-6 symptoms", "7-12 symptoms", "13-18 symptoms", "19-24 symptoms")) +
+  guides(colour=guide_legend(title = "Grupos de Síntomas")) +
+  theme_bw()
+
+```
+```{r grafica3}
+parte3 = data.frame(
+  id = db_lp$...1,
+  acts.ocio = db_lp$oportunidad_ocio,
+  energia.suf = db_lp$energia_suficiente,
+  cant.med = db_lp$cantidad_medicamento
+)
+```
+
