@@ -1,0 +1,256 @@
+---
+title: "shiny_lupus"
+output: html_document
+date: "2024-06-19"
+---
+
+```{r}
+# Cargar paquetes necesarios
+library(readr) # Para la lectura de archivos CSV
+library(shiny) # Para la creación de la aplicación Shiny
+library(ggplot2) # Para la creación de gráficos estáticos
+library(plotly) # Para la creación de gráficos interactivos
+
+# Cargar la base de datos desde un archivo CSV local
+db_lp <- readr::read_csv("/Users/db_lupus.csv", show_col_types = FALSE)
+
+# Calcular la suma de síntomas por paciente
+db_lp <- db_lp %>%
+  mutate(sum_symptoms = rowSums(select(., convulsion:leucopenia)))
+
+# Definir qué variables excluir del sidebar
+start_var <- match("...1", names(db_lp)) # Desde qué variable empezar a excluir
+end_var <- match("acr_date", names(db_lp)) # Hasta qué variable excluir
+exclude_vars <- c("sum_symptoms", names(db_lp)[start_var:end_var]) # Lista de variables a excluir
+
+# Crear una lista de variables a excluir, dejando "sum_symptoms" en las opciones
+exclude_vars2 <- c(names(db_lp)[start_var:end_var])
+
+# Definir la interfaz de usuario (UI) de la aplicación Shiny
+ui <- fluidPage(
+  # CSS personalizado para la aplicación
+  tags$head(
+    tags$style(HTML('
+      .shiny-title {
+        background-color: #4B0082; 
+        color: white; 
+        text-align: center;
+        padding: 20px 10px; 
+        margin-bottom: 20px; 
+      }
+    '))
+  ),
+  
+  # Primera sección de la aplicación
+  fluidRow(
+    column(width = 12,
+           # Título principal de la primera sección
+           div(class = "shiny-title",
+               h2("Visualizaciones de diversos parámetros contra el número de síntomas") # Encabezado nivel 2 para HTML
+           ),
+           # Layout de sidebar y panel principal
+           sidebarLayout(
+             # Panel lateral con controles de usuario
+             sidebarPanel(
+               id = "sidebar",
+               uiOutput("dynamicUI"), # Output dinámico basado en las selecciones del usuario
+               conditionalPanel(
+                 condition = "input.graphTabs == 'Gráfico de dispersión'", # Solo se mostrara cuando se seleccione "GdD"
+                 tags$div(
+                   class = "info-box",
+                   tags$h4("Descripción de variables"), # Encabezado nivel 4 para HTML
+                   tags$p("Aquí va la descripción de variables") # Creación de pequeño párrafo
+                 )
+               )
+             ),
+             # Panel principal para mostrar gráficos
+             mainPanel(
+               tabsetPanel(
+                 id = "graphTabs",
+                 tabPanel("Gráfico de dispersión",
+                          # Título del gráfico de dispersión
+                          h3("Gráfica de variables de interés y número de síntomas"), # Encabezado nivel 3 para HTML
+                          plotlyOutput(outputId = "scatterPlot1") # Output interactivo para el gráfico de dispersión
+                 ),
+                 tabPanel("Histograma",
+                          # Título del histograma
+                          h3("Agrupaciones de números de síntomas"), # Encabezado nivel 3 para HTML
+                          plotlyOutput(outputId = "distPlot1") # Output interactivo para el histograma
+                 )
+               )
+             )
+           )
+    )
+  ),
+  
+  # Segunda sección de la aplicación
+  fluidRow(
+    column(width = 12,
+           # Título principal de la segunda sección
+           div(class = "shiny-title",
+               h2("Segunda Sección de Gráficos") # Encabezado nivel 3 para HTML
+           )
+    )
+  ),
+  
+  # Segunda sección con gráfico de dispersión y histograma
+  fluidRow(
+    column(width = 12,
+           # Layout de sidebar y panel principal
+           sidebarLayout(
+             # Panel lateral con controles de usuario
+             sidebarPanel(
+               id = "sidebar2",
+               uiOutput("dynamicUI2"), # Output dinámico basado en las selecciones del usuario
+               conditionalPanel(
+                 condition = "input.graphTabs2 == 'Gráfico de dispersión 2'",
+                 tags$div(
+                   class = "info-box",
+                   tags$h4("Descripción de variables"), # Encabezado nivel 4 para HTML
+                   tags$p("Aquí va la descripción de variables") # Creación de pequeño párrafo
+                 )
+               )
+             ),
+             # Panel principal para mostrar gráficos
+             mainPanel(
+               tabsetPanel(
+                 id = "graphTabs2",
+                 tabPanel("Gráfico de dispersión 2",
+                          # Título del segundo gráfico de dispersión
+                          h3("Gráfica de variables de interés y número de síntomas 2"), # Encabezado nivel 3 para HTML
+                          plotlyOutput(outputId = "scatterPlot2") # Output interactivo para el segundo gráfico de dispersión
+                 ),
+                 tabPanel("Histograma 2",
+                          # Título del segundo histograma
+                          h3("Agrupaciones de números de síntomas 2"), # Encabezado nivel 3 para HTML
+                          plotlyOutput(outputId = "distPlot2") # Output interactivo para el segundo histograma
+                 )
+               )
+             )
+           )
+    )
+  )
+)
+
+# Definir la lógica del servidor
+server <- function(input, output, session) {
+  
+  # Expresión reactiva para la base de datos, permite cambios dinámicos (por si se actualiza la base de datos después)
+  data <- reactive({ db_lp })
+  
+  # UI dinámico basado en las selecciones del sidebar principal
+  output$dynamicUI <- renderUI({
+    req(input$graphTabs)
+    if (input$graphTabs == "Gráfico de dispersión") {
+      tagList(
+        selectInput(
+          inputId = "y",
+          label = "Variable principal a analizar: Eje Y",
+          choices = setdiff(names(db_lp), exclude_vars), # Excluir variables especificadas
+          selected = setdiff(names(db_lp), exclude_vars)[1] # Variable preseleccionada para el eje Y
+        ),
+        selectInput(
+          inputId = "color_group",
+          label = "Variable secundaria a analizar: Coloración",
+          choices = setdiff(names(db_lp), exclude_vars2), # Excluir variables especificadas
+          selected = "sum_symptoms" # Mostrar la suma de síntomas inicialmente
+        )
+      )
+    } else if (input$graphTabs == "Histograma") {
+      sliderInput(
+        inputId = "bins",
+        label = "Número de agrupaciones:",
+        min = 1,
+        max = 50,
+        value = 25 # Valor intermedio para la visualización del histograma
+      )
+    }
+  })
+  
+  # Renderizar el primer gráfico de dispersión
+  output$scatterPlot1 <- renderPlotly({
+    req(input$y, input$color_group)
+    p <- ggplot(data = data(), aes_string(x = "sum_symptoms", y = input$y, color = input$color_group)) + 
+      geom_point(size = 3) + 
+      theme_classic() + 
+      labs(x = "Suma de síntomas", y = input$y, color = input$color_group)
+    
+    ggplotly(p) %>% # Conversión de ggplot a gráfico dinámico con plotly
+      config(displayModeBar = FALSE)
+  })
+  
+  # Renderizar el primer histograma
+  output$distPlot1 <- renderPlotly({
+    req(input$bins)
+    x <- data()$sum_symptoms
+    bins <- seq(min(x), max(x), length.out = input$bins + 1)
+    p <- ggplot(data = data(), aes(x = sum_symptoms)) +
+      geom_histogram(breaks = bins, fill = "#010bc2", color = "white") +
+      theme_minimal() +
+      labs(x = "Suma de síntomas", y = "Frecuencia de conteo")
+    
+    ggplotly(p) %>% # Igual: conversión de ggplot a gráfico dinámico con plotly
+      config(displayModeBar = FALSE)
+  })
+  
+  # UI dinámico basado en las selecciones del sidebar secundario
+  output$dynamicUI2 <- renderUI({
+    req(input$graphTabs2)
+    if (input$graphTabs2 == "Gráfico de dispersión 2") {
+      tagList(
+        selectInput(
+          inputId = "y2",
+          label = "Variable principal a analizar: Eje Y",
+          choices = setdiff(names(db_lp), exclude_vars), # Excluir variables especificadas
+          selected = setdiff(names(db_lp), exclude_vars)[1] # Variable preseleccionada para el eje Y
+        ),
+        selectInput(
+          inputId = "color_group2",
+          label = "Variable secundaria a analizar: Coloración",
+          choices = setdiff(names(db_lp), exclude_vars2), # Excluir variables especificadas
+          selected = "sum_symptoms" # Mostrar la suma de síntomas inicialmente
+        )
+      )
+    } else if (input$graphTabs2 == "Histograma 2") {
+      sliderInput(
+        inputId = "bins2",
+        label = "Número de agrupaciones:",
+        min = 1,
+        max = 50,
+        value = 25 # Valor intermedio para la visualización del histograma
+      )
+    }
+  })
+  
+  # Renderizar el segundo gráfico de dispersión
+  output$scatterPlot2 <- renderPlotly({
+    req(input$y2, input$color_group2)
+    p <- ggplot(data = data(), aes_string(x = "sum_symptoms", y = input$y2, color = input$color_group2)) + 
+      geom_point(size = 3) + 
+      theme_classic() + 
+      labs(x = "Suma de síntomas", y = input$y2, color = input$color_group2)
+    
+    ggplotly(p) %>% # Conversión de ggplot a gráfico dinámico con plotly
+      config(displayModeBar = FALSE)
+  })
+  
+  # Renderizar el segundo histograma
+  output$distPlot2 <- renderPlotly({
+    req(input$bins2)
+    x <- data()$sum_symptoms
+    bins <- seq(min(x), max(x), length.out = input$bins2 + 1)
+    p <- ggplot(data = data(), aes(x = sum_symptoms)) +
+      geom_histogram(breaks = bins, fill = "#007bc2", color = "white") +
+      theme_minimal() +
+      labs(x = "Suma de síntomas", y = "Frecuencia de conteo")
+    
+    ggplotly(p) %>% # Igual: conversión de ggplot a gráfico dinámico con plotly
+      config(displayModeBar = FALSE)
+  })
+}
+
+# Ejecutar la aplicación Shiny
+shinyApp(ui = ui, server = server)
+
+```
+
